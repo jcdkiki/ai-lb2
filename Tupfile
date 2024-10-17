@@ -1,0 +1,1 @@
+: pbplots/*.o src/*.o |> gcc %f -lm -o %o |> lb2
