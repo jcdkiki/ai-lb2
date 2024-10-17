@@ -15,7 +15,6 @@
 #define POINTS_DISTRIBUTION 2.f
 #define EPSILON 1e-9f
 #define ERROR_VALUES_MEMORY_LIMIT 1024
-#define ERROR_TARGET EPSILON
 
 typedef struct {
     double x, y;
@@ -96,57 +95,19 @@ double random_double(double min, double max)
     return (max - min) * ((double)rand() / RAND_MAX) + min;
 }
 
-size_t dataset_size = 10000;
-size_t n_epochs = 100;
-size_t n_tests = 100;
-int    auto_flag = 0;
-
-void read_args(int argc, char **argv)
-{
-    int c;
-    int digit_optind = 0;
-
-    while (1) {
-        static struct option long_options[] = {
-            { "epochs", 1, NULL, 'e' },
-            { "dataset", 1, NULL, 'd' },
-            { "seed", 1, NULL, 's' },
-            { "test", 1, NULL, 't' },
-            { "auto", 0, NULL, 'a' },
-            { NULL, 0, NULL, 0 }
-        };
-
-        c = getopt_long(argc, argv, "e:d:s:t:a", long_options, NULL);
-        
-        if (c == -1)
-            break;
-
-        switch (c) {
-        case 'e':
-            n_epochs = atoi(optarg);
-            break;
-        case 'd':
-            dataset_size = atoi(optarg);
-            break;
-        case 's':
-            srand(atoi(optarg));
-            break;
-        case 't':
-            n_tests = atoi(optarg);
-            break;
-        case 'a':
-            auto_flag = 1;
-            break;
-        default:
-            exit(1);
-        }
-    }
-}
-
 int main(int argc, char **argv)
 {
-    srand(time(NULL));
-    read_args(argc, argv);
+    argc--; argv++;
+    if (argc != 4) {
+        fprintf(stderr, "usage: lb2 SEED N_EPOCHS DATASET_SIZE N_TESTS\n"
+                        "example: lb2 200 100 10000 100\n");
+        return 1;
+    }
+
+    srand(atoi(argv[0]));
+    size_t n_epochs = atoi(argv[1]);
+    size_t dataset_size = atoi(argv[2]);
+    size_t n_tests = atoi(argv[3]);
 
     size_t n_error_values = n_epochs * dataset_size;
     size_t error_values_step = 1;
@@ -157,10 +118,15 @@ int main(int argc, char **argv)
 
     testcase_t *dataset = malloc(sizeof(testcase_t) * dataset_size);
     double *error_values = malloc(sizeof(double) * n_error_values);
+    double *error_values_xaxis = malloc(sizeof(double) * n_error_values);
 
-    if (dataset == NULL || error_values == NULL) {
+    if (dataset == NULL || error_values == NULL || error_values_xaxis == NULL) {
         fprintf(stderr, "failed to allocate memory\n");
         return 1;
+    }
+
+    for (size_t i = 0; i < n_error_values; i++) {
+        error_values_xaxis[i] = i * error_values_step;
     }
 
     for (size_t i = 0; i < dataset_size; i++) {
@@ -185,12 +151,6 @@ int main(int argc, char **argv)
 
             if ((i % error_values_step) == 0)
                 error_values[i / error_values_step] = error;
-        }
-
-        if (error_sum / dataset_size < ERROR_TARGET) {
-            n_epochs = epoch;
-            n_error_values = i / error_values_step;
-            break;
         }
     }
 
@@ -230,16 +190,17 @@ int main(int argc, char **argv)
         wrong_cnt, (float)wrong_cnt / n_tests * 100
     );
 
-    // plotting here
+    // plotting
 
     StartArenaAllocator();
+    system("rm -rf plots");
     system("mkdir -p plots");
     for (size_t n = n_error_values, i = 1; n > 1; n /= 2, i++) {
         static char plot_name[128];
         sprintf(plot_name, "plots/plot%zu.png", i);
 
         RGBABitmapImageReference *canvas = CreateRGBABitmapImageReference();
-        int success = DrawBarPlot(canvas, 600, 400, error_values, n, NULL);
+        int success = DrawScatterPlot(canvas, 600, 400, error_values_xaxis, n, error_values, n, NULL);
 
         ByteArray *pngdata = ConvertToPNG(canvas->image);
         WriteToFile(pngdata, plot_name);
@@ -248,11 +209,15 @@ int main(int argc, char **argv)
         printf("saved %s of size %zu\n", plot_name, n);
 
         for (int i = 0; i < n; i += 2) {
-            error_values[i/2] = error_values[i];
+            error_values[i/2] = (error_values[i] + error_values[i+1]) / 2;
+            error_values_xaxis[i/2] = error_values_xaxis[i];
         }
     }
     FreeAllocations();
 
+    system("ffmpeg -y -framerate 2 -i 'plots/plot%d.png' plots/plot.mp4");
+
     free(dataset);
     free(error_values);
+    free(error_values_xaxis);
 }
