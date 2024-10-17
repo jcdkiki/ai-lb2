@@ -14,7 +14,7 @@
 #define MAX_WEIGHT  1.f
 #define POINTS_DISTRIBUTION 2.f
 #define EPSILON 1e-9f
-#define ERROR_VALUES_MEMORY_LIMIT 1024
+#define ERROR_VALUES_MEMORY_LIMIT 1
 
 typedef struct {
     double x, y;
@@ -112,8 +112,9 @@ int main(int argc, char **argv)
     size_t n_error_values = n_epochs * dataset_size;
     size_t error_values_step = 1;
     if (n_error_values / 1024 / 1024 > ERROR_VALUES_MEMORY_LIMIT / sizeof(double)) {
-        n_error_values = (ERROR_VALUES_MEMORY_LIMIT / sizeof(double)) * 1024 * 1024;
-        error_values_step = (n_epochs * dataset_size + error_values_step - 1) / error_values_step;
+        fprintf(stderr, "hit ERROR_VALUES_MEMORY_LIMIT. adjusting...\n");
+        n_error_values = ERROR_VALUES_MEMORY_LIMIT * (1024 * 1024 / sizeof(double));
+        error_values_step = (n_epochs * dataset_size + n_error_values - 1) / n_error_values;
     }
 
     testcase_t *dataset = malloc(sizeof(testcase_t) * dataset_size);
@@ -141,7 +142,7 @@ int main(int argc, char **argv)
     }
 
     for (size_t epoch = 0, i = 0; epoch < n_epochs; epoch++) {
-        printf("epoch %zu/%zu\n", epoch, n_epochs);
+        printf("epoch %zu (%zu%%)\n", epoch, (epoch * 100) / n_epochs);
         shuffle(dataset, dataset_size);
 
         for (int j = 0; j < dataset_size; j++, i++) {
