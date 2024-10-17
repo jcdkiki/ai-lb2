@@ -141,13 +141,11 @@ int main(int argc, char **argv)
     }
 
     for (size_t epoch = 0, i = 0; epoch < n_epochs; epoch++) {
-        printf("epoch %zu\n", epoch);
+        printf("epoch %zu/%zu\n", epoch, n_epochs);
         shuffle(dataset, dataset_size);
 
-        double error_sum;
         for (int j = 0; j < dataset_size; j++, i++) {
             double error = update_weights((double*)&dataset[j].point, weights, dataset[j].expected_output);
-            error_sum += error;
 
             if ((i % error_values_step) == 0)
                 error_values[i / error_values_step] = error;
@@ -195,7 +193,7 @@ int main(int argc, char **argv)
     StartArenaAllocator();
     system("rm -rf plots");
     system("mkdir -p plots");
-    for (size_t n = n_error_values, i = 1; n > 1; n /= 2, i++) {
+    for (size_t n = n_error_values, i = 1; n > 2; n /= 2, i++) {
         static char plot_name[128];
         sprintf(plot_name, "plots/plot%zu.png", i);
 
@@ -210,12 +208,15 @@ int main(int argc, char **argv)
 
         for (int i = 0; i < n; i += 2) {
             error_values[i/2] = (error_values[i] + error_values[i+1]) / 2;
-            error_values_xaxis[i/2] = error_values_xaxis[i];
+            error_values_xaxis[i/2] = error_values_xaxis[i+1];
         }
     }
     FreeAllocations();
 
-    system("ffmpeg -y -framerate 2 -i 'plots/plot%d.png' plots/plot.mp4");
+    system("ffmpeg -y -framerate 2 -i 'plots/plot%d.png' plots/plot-2fps.mp4 2> /dev/null");
+    system("ffmpeg -y -framerate 30 -i 'plots/plot%d.png' plots/plot-30fps.mp4 2> /dev/null");
+    system("ffmpeg -y -framerate 2 -i 'plots/plot%d.png' plots/plot-2fps.gif 2> /dev/null");
+    system("ffmpeg -y -framerate 30 -i 'plots/plot%d.png' plots/plot-30fps.gif 2> /dev/null");
 
     free(dataset);
     free(error_values);
