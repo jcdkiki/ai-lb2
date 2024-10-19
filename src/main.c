@@ -10,8 +10,8 @@
 #define INPUT_LAYER_SIZE 2
 #define N_WEIGHTS (INPUT_LAYER_SIZE * 2)
 #define GRADIENT_LAMBDA 0.001f
-#define MIN_WEIGHT -1.f
-#define MAX_WEIGHT  1.f
+#define MIN_WEIGHT -10.f
+#define MAX_WEIGHT  10.f
 #define POINTS_DISTRIBUTION 2.f
 #define EPSILON 1e-9f
 #define ERROR_VALUES_MEMORY_LIMIT 1
@@ -95,6 +95,19 @@ double random_double(double min, double max)
     return (max - min) * ((double)rand() / RAND_MAX) + min;
 }
 
+double get_answer(vec2 point)
+{
+    return (point.y > -point.x) ? 1.f : 0.f;
+}
+
+vec2 random_point()
+{
+    return (vec2) {
+        .x = random_double(-POINTS_DISTRIBUTION, POINTS_DISTRIBUTION),
+        .y = random_double(-POINTS_DISTRIBUTION, POINTS_DISTRIBUTION)
+    };
+}
+
 int main(int argc, char **argv)
 {
     argc--; argv++;
@@ -131,9 +144,8 @@ int main(int argc, char **argv)
     }
 
     for (size_t i = 0; i < dataset_size; i++) {
-        dataset[i].point.x = random_double(-POINTS_DISTRIBUTION, POINTS_DISTRIBUTION);
-        dataset[i].point.y = random_double(-POINTS_DISTRIBUTION, POINTS_DISTRIBUTION);
-        dataset[i].expected_output = (dataset[i].point.y > -dataset[i].point.x) ? 1.f : 0.f;
+        dataset[i].point = random_point();
+        dataset[i].expected_output = get_answer(dataset[i].point);
     }
 
     static double weights[N_WEIGHTS];
@@ -145,8 +157,18 @@ int main(int argc, char **argv)
         printf("epoch %zu (%zu%%)\n", epoch, (epoch * 100) / n_epochs);
         shuffle(dataset, dataset_size);
 
+        int cross_validation_pos = rand() % dataset_size; 
+
         for (int j = 0; j < dataset_size; j++, i++) {
             double error = update_weights((double*)&dataset[j].point, weights, dataset[j].expected_output);
+
+            if (j == cross_validation_pos) {
+                for (int k = 0; k < dataset_size; k += 9) {
+                    vec2 point = random_point();
+                    double answer = get_answer(point);
+                    update_weights((double*)&point, weights, answer);
+                }
+            }
 
             if ((i % error_values_step) == 0)
                 error_values[i / error_values_step] = error;
